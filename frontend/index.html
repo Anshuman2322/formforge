@@ -484,9 +484,16 @@ async function upload(f, engine){
   const aiNote = engine==="ai"
     ? "Running AI Parse (Gemini) — this can take 30-60s for scanned/multi-page forms, please keep this tab open…"
     : "detecting structure…";
-  dropInner.innerHTML = `<b>Parsing ${esc(f.name)}…</b><br><span style="font-size:12.5px">${aiNote}</span>`;
+  dropInner.innerHTML = `<b>Parsing ${esc(f.name)}…</b><br><span style="font-size:12.5px" id="parseNote">${aiNote}</span>`;
   const fd = new FormData(); fd.append("file", f);
   let recovery = false;
+  // Most PDFs parse in well under a second — this only fires (and reassures
+  // the user it isn't stuck) on the rare scan/flattened PDF that falls back
+  // to on-server OCR, which can take a couple of minutes on a free-tier CPU.
+  const slowNote = engine==="rules" ? setTimeout(() => {
+    const el = document.getElementById("parseNote");
+    if(el) el.textContent = "Still working — this PDF may need on-server OCR, which can take a couple of minutes on a free hosting plan. Please keep this tab open…";
+  }, 6000) : null;
   try{
     const r = await fetch(`/api/parse?engine=${engine}`, {method:"POST", body:fd});
     if(!r.ok) throw new Error((await r.json()).detail || r.statusText);
@@ -518,7 +525,7 @@ async function upload(f, engine){
       toast("Parse failed: "+err.message, 7000);
     }
   }
-  finally{ if(!recovery) resetDrop(); fileInput.value = ""; fileAiInput.value = ""; }
+  finally{ if(slowNote) clearTimeout(slowNote); if(!recovery) resetDrop(); fileInput.value = ""; fileAiInput.value = ""; }
 }
 function resetDrop(){
   dropInner.innerHTML = `<b>Drop a PDF here</b> or <button class="btn small" id="pick2">choose a file</button><br>
