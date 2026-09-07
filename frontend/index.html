@@ -481,9 +481,12 @@ $("#btnAiParse").onclick = () => {
 async function upload(f, engine){
   if(!f.name.toLowerCase().endsWith(".pdf")) return toast("Only PDF files are supported");
   state.lastFile = f;
-  const aiNote = engine==="ai" ? "Running AI Parse (Gemini) — multi-page forms take a bit longer" : "detecting structure…";
+  const aiNote = engine==="ai"
+    ? "Running AI Parse (Gemini) — this can take 30-60s for scanned/multi-page forms, please keep this tab open…"
+    : "detecting structure…";
   dropInner.innerHTML = `<b>Parsing ${esc(f.name)}…</b><br><span style="font-size:12.5px">${aiNote}</span>`;
   const fd = new FormData(); fd.append("file", f);
+  let recovery = false;
   try{
     const r = await fetch(`/api/parse?engine=${engine}`, {method:"POST", body:fd});
     if(!r.ok) throw new Error((await r.json()).detail || r.statusText);
@@ -499,8 +502,23 @@ async function upload(f, engine){
     const mem = state.meta.memory || {};
     toast(`${data.components.length} blocks detected in ${state.meta.parseSeconds}s` +
           (engine==="ai" ? " · AI Parse (Gemini)" : (mem.applied ? ` · memory applied ${mem.applied} correction(s)` : "")));
-  }catch(err){ toast("Parse failed: "+err.message, 7000); }
-  finally{ resetDrop(); fileInput.value = ""; fileAiInput.value = ""; }
+  }catch(err){
+    // Local rules-engine hit a scan/flattened PDF it can't OCR on this server —
+    // offer AI Parse right where the error happened (still one explicit click;
+    // AI never runs on its own — see the note next to the AI Parse button).
+    if(engine==="rules" && /OcrUnavailable/.test(err.message) && aiInfo.available){
+      recovery = true;
+      dropInner.innerHTML = `<b>This PDF needs AI Parse</b><br>
+        <span style="font-size:12.5px">Its text looks like a scan or flattened print — the free local engine
+        can't read it here. Gemini can read the page image directly instead (sent to Google; free-tier content
+        may be used for Google's product improvement).</span><br>
+        <button class="btn small primary" id="retryAi" style="margin-top:8px">Try AI Parse now</button>`;
+      $("#retryAi").onclick = () => upload(f, "ai");
+    } else {
+      toast("Parse failed: "+err.message, 7000);
+    }
+  }
+  finally{ if(!recovery) resetDrop(); fileInput.value = ""; fileAiInput.value = ""; }
 }
 function resetDrop(){
   dropInner.innerHTML = `<b>Drop a PDF here</b> or <button class="btn small" id="pick2">choose a file</button><br>
