@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pdfplumber
+pytesseract   # free/local OCR fallback — also needs the Tesseract-OCR engine
+              # installed on the system (not pip-installable), see README
+
+# dev/test-only deps (sample PDF generator, etc.) live in requirements-dev.txt —
+# production deploys don't need them.

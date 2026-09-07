@@ -1,0 +1,3 @@
+-r requirements.txt
+
+reportlab   # only used by samples/make_samples.py to generate test PDFs

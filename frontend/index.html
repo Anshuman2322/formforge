@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FormForge — PDF to editable form template</title>
+<style>
+  :root{
+    --bg:#f4f6f9; --panel:#ffffff; --ink:#16202c; --muted:#6b7a8d;
+    --line:#dfe5ec; --brand:#1668d6; --brand-soft:#e8f0fd;
+    --warn:#b8730b; --warn-soft:#fdf3e2; --ok:#0f8a5f; --danger:#c23b3b;
+    --radius:10px; --shadow:0 1px 2px rgba(16,32,48,.06),0 4px 14px rgba(16,32,48,.05);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+       background:var(--bg);color:var(--ink)}
+  button,input,select,textarea{font:inherit;color:inherit}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;
+       cursor:pointer;transition:.15s;white-space:nowrap}
+  .btn:hover{border-color:#b9c4d2;background:#fbfcfe}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn.primary:hover{background:#1259ba}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+  .btn.small{padding:4px 8px;font-size:12px}
+  .btn.danger{color:var(--danger)}
+
+  /* ---------- top bar ---------- */
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--panel);
+         border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  .logo{font-weight:700;letter-spacing:-.02em}
+  .logo span{color:var(--brand)}
+  #title{border:1px solid transparent;border-radius:8px;padding:6px 10px;min-width:280px;
+         font-weight:600;background:transparent}
+  #title:hover{border-color:var(--line)} #title:focus{border-color:var(--brand);outline:none;background:#fff}
+  .spacer{flex:1}
+  .pill{font-size:12px;color:var(--muted);background:#f0f3f7;border-radius:999px;padding:4px 10px}
+
+  /* ---------- layout ---------- */
+  main{display:grid;grid-template-columns:210px 1fr 330px;gap:14px;padding:14px;
+       align-items:start;max-width:1500px;margin:0 auto}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+         box-shadow:var(--shadow)}
+  .panel h3{margin:0;padding:11px 14px;font-size:12px;text-transform:uppercase;
+            letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--line)}
+  aside{position:sticky;top:66px}
+
+  /* ---------- palette ---------- */
+  .group{border-bottom:1px solid var(--line)}
+  .group>summary{padding:9px 14px;cursor:pointer;font-weight:600;font-size:13px;list-style:none;
+                 display:flex;justify-content:space-between;align-items:center}
+  .group>summary::-webkit-details-marker{display:none}
+  .group>summary::after{content:"›";transform:rotate(90deg);color:var(--muted)}
+  .group[open]>summary::after{transform:rotate(-90deg)}
+  .palette{padding:6px 10px 12px;display:flex;flex-direction:column;gap:5px}
+  .palette button{text-align:left;border:1px solid var(--line);background:#fbfcfe;border-radius:7px;
+                  padding:6px 10px;cursor:pointer;font-size:13px;display:flex;gap:8px;align-items:center}
+  .palette button:hover{border-color:var(--brand);background:var(--brand-soft)}
+  .ico{width:16px;text-align:center;opacity:.7}
+
+  /* ---------- canvas ---------- */
+  #drop{border:2px dashed #c6d2e0;border-radius:var(--radius);background:#fbfcfe;padding:26px;
+        text-align:center;color:var(--muted);margin-bottom:14px;transition:.15s}
+  #drop.hot{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+  #drop b{color:var(--ink)}
+  .card{border:1px solid var(--line);border-radius:var(--radius);background:#fff;margin:0 0 10px;
+        position:relative;transition:.12s}
+  .card:hover{border-color:#c3cedb}
+  .card.sel{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+  .card.low{border-left:3px solid var(--warn)}
+  .card.drag{opacity:.4}
+  .card.over{border-top:2px solid var(--brand)}
+  .chead{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #eef2f6;
+         background:#fcfdfe;border-radius:var(--radius) var(--radius) 0 0}
+  .grab{cursor:grab;color:#a9b6c6;padding:0 2px}
+  .tag{font-size:11px;background:#eef2f7;border-radius:5px;padding:2px 7px;color:var(--muted)}
+  .flag{font-size:11px;background:var(--warn-soft);color:var(--warn);border-radius:5px;padding:2px 7px}
+  .cbody{padding:12px 14px}
+  .lab{display:block;font-weight:600;margin-bottom:6px;font-size:13.5px}
+  .lab i{color:var(--danger);font-style:normal}
+  .inp{width:100%;border:1px solid #ccd6e0;border-radius:7px;padding:8px 10px;background:#fff}
+  .inp[readonly]{background:#f7f9fb}
+  .opts{display:flex;flex-wrap:wrap;gap:8px 18px}
+  .opts.vert{flex-direction:column;gap:6px}
+  .opt{display:flex;align-items:center;gap:6px;font-size:13.5px}
+  .h1p{font-size:17px;font-weight:700;margin:2px 0}
+  .h2p{font-size:14.5px;font-weight:700;letter-spacing:.02em;color:#2b3b4d}
+  .para{color:#41505f;font-size:13.5px}
+  table.prev{width:100%;border-collapse:collapse;font-size:13px}
+  table.prev th,table.prev td{border:1px solid var(--line);padding:6px 8px;text-align:left}
+  table.prev th{background:#f5f8fb;font-weight:600}
+  .sigbox{height:64px;border:1px dashed #c6d2e0;border-radius:7px;display:flex;align-items:center;
+          justify-content:center;color:var(--muted);font-size:12px}
+  .row{display:flex;flex-wrap:wrap;gap:0 10px}
+
+  /* ---------- inspector ---------- */
+  .field{padding:10px 14px;border-bottom:1px solid #f0f3f7}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600}
+  .field input[type=text],.field input[type=number],.field select,.field textarea{
+    width:100%;border:1px solid #ccd6e0;border-radius:7px;padding:7px 9px;background:#fff}
+  .field .inline{display:flex;align-items:center;gap:8px}
+  .optrow{display:flex;gap:6px;margin-bottom:6px}
+  .optrow input{flex:1}
+  .hintxt{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .empty{padding:26px 16px;text-align:center;color:var(--muted);font-size:13px}
+  dialog{border:none;border-radius:12px;padding:0;box-shadow:0 20px 60px rgba(10,20,35,.28);width:min(760px,92vw)}
+  dialog header{border-radius:12px 12px 0 0}
+  dialog pre{margin:0;padding:14px;max-height:60vh;overflow:auto;background:#0f1722;color:#d7e3f2;
+             font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#16202c;color:#fff;
+         padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:60}
+  .toast.on{opacity:1}
+  body.previewing aside,body.previewing #drop,body.previewing #aiRow,body.previewing .chead{display:none}
+  body.previewing main{grid-template-columns:1fr;max-width:820px}
+  /* Preview = one continuous form, not a stack of separate boxes: the page
+     itself gets the paper look, individual fields just flow inside it. */
+  body.previewing #list{background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+         box-shadow:var(--shadow);padding:28px 32px}
+  body.previewing .card{border:none;box-shadow:none;background:transparent;margin-bottom:18px}
+  body.previewing .cbody{padding:0}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Form<span>Forge</span></div>
+  <input id="title" value="Untitled Template">
+  <span class="pill" id="stat">0 fields</span>
+  <div class="spacer"></div>
+  <button class="btn" id="btnPreview">Preview</button>
+  <button class="btn" id="btnJson">JSON</button>
+  <button class="btn" id="btnFormio">Export form.io</button>
+  <button class="btn primary" id="btnSave">Save</button>
+</header>
+
+<main>
+  <!-- palette -->
+  <aside class="panel">
+    <h3>Add field</h3>
+    <details class="group" open><summary>Basic</summary><div class="palette" data-g="basic"></div></details>
+    <details class="group"><summary>Choice</summary><div class="palette" data-g="choice"></div></details>
+    <details class="group"><summary>Advanced</summary><div class="palette" data-g="adv"></div></details>
+    <details class="group"><summary>Layout</summary><div class="palette" data-g="layout"></div></details>
+  </aside>
+
+  <!-- canvas -->
+  <section>
+    <input type="file" id="file" accept="application/pdf" hidden>
+    <input type="file" id="fileAi" accept="application/pdf" hidden>
+    <div id="drop"><div id="dropInner">
+      <b>Drop a PDF here</b> or <button class="btn small" id="pick">choose a file</button><br>
+      <span style="font-size:12.5px">The system will automatically detect: heading, checkbox group, Yes/No, table, signature, date…</span>
+    </div></div>
+    <div id="aiRow" style="margin:10px 2px;display:flex;align-items:center;gap:10px">
+      <button class="btn small" id="btnAiParse" disabled>AI Parse (Gemini, free tier)</button>
+      <span id="aiHint" style="font-size:12px;color:var(--muted)">
+        Try this if the local result looks weak — the page image is sent to Google
+        (free-tier content may be used for Google's product improvement).
+      </span>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <!-- inspector -->
+  <aside class="panel">
+    <h3>Properties</h3>
+    <div id="insp"><div class="empty">Click a field to edit it</div></div>
+  </aside>
+</main>
+
+<dialog id="dlg">
+  <header style="padding:10px 14px;border-bottom:1px solid var(--line)">
+    <b id="dlgTitle">JSON</b><div class="spacer"></div>
+    <button class="btn small" id="copyBtn">Copy</button>
+    <button class="btn small" id="dlBtn">Download</button>
+    <button class="btn small" onclick="dlg.close()">Close</button>
+  </header>
+  <pre id="dlgBody"></pre>
+</dialog>
+
+<dialog id="dlgSaved" style="width:min(440px,92vw)">
+  <div style="padding:22px 22px 16px">
+    <div style="font-weight:700;font-size:16px;margin-bottom:8px;color:var(--ok)">✓ Saved to local server</div>
+    <div id="savedDetail" style="font-size:13px;line-height:1.6;color:var(--ink)"></div>
+  </div>
+  <div style="padding:10px 14px;border-top:1px solid var(--line);text-align:right">
+    <button class="btn small primary" onclick="dlgSaved.close()">OK</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===========================================================================
+// model
+// ===========================================================================
+const TYPES = {
+  heading:{name:"Heading",ico:"H",g:"layout"},
+  subheading:{name:"Sub Heading",ico:"h",g:"layout"},
+  paragraph:{name:"Paragraph",ico:"¶",g:"layout"},
+  divider:{name:"Divider",ico:"—",g:"layout"},
+  textbox:{name:"Textbox",ico:"T",g:"basic"},
+  textarea:{name:"Textarea",ico:"A",g:"basic"},
+  number:{name:"Number",ico:"#",g:"basic"},
+  date:{name:"Date",ico:"▤",g:"basic"},
+  time:{name:"Time",ico:"◷",g:"basic"},
+  dropdown:{name:"Dropdown",ico:"▾",g:"choice"},
+  radiogroup:{name:"Radio group",ico:"◉",g:"choice"},
+  checkboxgroup:{name:"Checkbox group",ico:"☑",g:"choice"},
+  checkbox:{name:"Single checkbox",ico:"☐",g:"choice"},
+  table:{name:"Table",ico:"▦",g:"adv"},
+  signature:{name:"Signature",ico:"✎",g:"adv"},
+  fileupload:{name:"File upload",ico:"⇧",g:"adv"},
+};
+const CHOICE = new Set(["dropdown","radiogroup","checkboxgroup"]);
+const STATIC = new Set(["heading","subheading","paragraph","divider"]);
+
+let state = {template:{title:"Untitled Template", components:[]}, sel:null, meta:{}, original:null, lastFile:null};
+const $ = s => document.querySelector(s);
+const uid = () => "c_" + Math.random().toString(36).slice(2,10);
+const slug = s => (s||"").toLowerCase().replace(/[^\w\s-]/g," ").trim().replace(/\s+/g,"_").slice(0,60) || "field";
+const esc = s => (s??"").toString().replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("on");
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("on"),2200); }
+
+// ===========================================================================
+// palette
+// ===========================================================================
+for(const [type,info] of Object.entries(TYPES)){
+  const host = document.querySelector(`.palette[data-g="${info.g}"]`);
+  const b = document.createElement("button");
+  b.innerHTML = `<span class="ico">${info.ico}</span>${info.name}`;
+  b.onclick = () => addComponent(type);
+  host.appendChild(b);
+}
+
+function blankComponent(type){
+  const c = {id:uid(), type, label:TYPES[type].name, key:"", required:false, width:12,
+             placeholder:"", hint:"", rows:3, options:[], optionLayout:"horizontal",
+             columns:[], rowCount:3, confidence:1, detectedBy:"manual", source:{}};
+  c.key = slug(c.label)+"_"+c.id.slice(2,6);
+  if(CHOICE.has(type)) c.options = [{id:"option_1",label:"Option 1"},{id:"option_2",label:"Option 2"}];
+  if(type==="table") c.columns = [{key:"col_1",label:"Column 1",type:"textbox"},
+                                  {key:"col_2",label:"Column 2",type:"textbox"}];
+  if(type==="paragraph") c.label = "Enter your text here.";
+  return c;
+}
+function addComponent(type){
+  const c = blankComponent(type);
+  const at = state.sel ? state.template.components.findIndex(x=>x.id===state.sel)+1
+                       : state.template.components.length;
+  state.template.components.splice(at,0,c);
+  state.sel = c.id; render();
+}
+
+// ===========================================================================
+// render — canvas
+// ===========================================================================
+function widget(c, fill){
+  const req = c.required ? ' <i>*</i>' : '';
+  const L = `<span class="lab">${esc(c.label)}${req}</span>`;
+  const ro = fill ? "" : "readonly";
+  const dis = fill ? "" : "disabled";
+  switch(c.type){
+    case "heading":    return `<div class="h1p">${esc(c.label)}</div>`;
+    case "subheading": return `<div class="h2p">${esc(c.label)}</div>`;
+    case "paragraph":  return `<div class="para">${esc(c.label)}</div>`;
+    case "divider":    return `<hr style="border:none;border-top:1px solid var(--line)">`;
+    case "textarea":   return L+`<textarea class="inp" rows="${c.rows||3}" placeholder="${esc(c.placeholder)}" ${ro}></textarea>`;
+    case "number":     return L+`<input class="inp" type="number" placeholder="${esc(c.placeholder)}" ${ro}>`;
+    case "date":       return L+`<input class="inp" type="date" ${ro}>`;
+    case "time":       return L+`<input class="inp" type="time" ${ro}>`;
+    case "signature":  return L+`<div class="sigbox">Sign here</div>`;
+    case "fileupload": return L+`<div class="sigbox">Click to upload</div>`;
+    case "checkbox":   return `<label class="opt"><input type="checkbox" ${dis}> ${esc(c.label)}</label>`;
+    case "dropdown":   return L+`<select class="inp" ${dis}><option>-- Select --</option>${
+                        c.options.map(o=>`<option>${esc(o.label)}</option>`).join("")}</select>`;
+    case "radiogroup":
+    case "checkboxgroup":{
+      const t = c.type==="radiogroup" ? "radio" : "checkbox";
+      const nm = fill ? ` name="g_${c.id}"` : "";
+      return L+`<div class="opts ${c.optionLayout==="vertical"?"vert":""}">${
+        c.options.map(o=>`<label class="opt"><input type="${t}"${nm} ${dis}> ${esc(o.label)}</label>`).join("")}</div>`;
+    }
+    case "table":{
+      const head = c.columns.map(x=>`<th>${esc(x.label)}</th>`).join("");
+      const cellAttr = fill ? ' contenteditable="true"' : "";
+      const row  = c.columns.map(()=>`<td${cellAttr}>&nbsp;</td>`).join("");
+      return L+`<table class="prev"><thead><tr>${head}</tr></thead><tbody>${
+        Array.from({length:Math.min(c.rowCount||2,4)},()=>`<tr>${row}</tr>`).join("")}</tbody></table>`;
+    }
+    default: return L+`<input class="inp" placeholder="${esc(c.placeholder)}" ${ro}>`;
+  }
+}
+
+function render(){
+  const list = $("#list"); list.innerHTML = "";
+  $("#title").value = state.template.title;
+  const inputs = state.template.components.filter(c=>!STATIC.has(c.type)).length;
+  $("#stat").textContent = `${state.template.components.length} blocks · ${inputs} inputs`;
+  const previewing = document.body.classList.contains("previewing");
+
+  state.template.components.forEach((c,i)=>{
+    const el = document.createElement("div");
+    el.className = "card" + (c.id===state.sel?" sel":"") + (c.confidence<0.8?" low":"");
+    el.style.width = `calc(${(c.width||12)/12*100}% - 4px)`;
+    el.style.display = "inline-block"; el.style.verticalAlign="top"; el.style.marginRight="4px";
+    el.dataset.i = i; el.draggable = !previewing;
+    el.innerHTML = `
+      <div class="chead">
+        <span class="grab">⠿</span>
+        <span class="tag">${TYPES[c.type]?.name || c.type}</span>
+        ${c.confidence<0.8?`<span class="flag">check ${Math.round(c.confidence*100)}%</span>`:""}
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn ghost small" data-act="dup" title="Duplicate">⧉</button>
+        <button class="btn ghost small danger" data-act="del" title="Delete">✕</button>
+      </div>
+      <div class="cbody">${widget(c, previewing)}</div>`;
+    // Preview mode = actually fill out the form, so clicking into a field must
+    // not select/re-render (that would wipe whatever was just typed).
+    el.onclick = e => { if(previewing || e.target.dataset.act) return; state.sel = c.id; render(); };
+    el.querySelector('[data-act="del"]').onclick = e => {
+      e.stopPropagation(); state.template.components.splice(i,1);
+      if(state.sel===c.id) state.sel=null; render(); };
+    el.querySelector('[data-act="dup"]').onclick = e => {
+      e.stopPropagation(); const copy = JSON.parse(JSON.stringify(c));
+      copy.id = uid(); copy.key = c.key+"_copy";
+      state.template.components.splice(i+1,0,copy); state.sel=copy.id; render(); };
+
+    el.addEventListener("dragstart", ev => { ev.dataTransfer.setData("text/plain", i); el.classList.add("drag"); });
+    el.addEventListener("dragend",  () => el.classList.remove("drag"));
+    el.addEventListener("dragover", ev => { ev.preventDefault(); el.classList.add("over"); });
+    el.addEventListener("dragleave",() => el.classList.remove("over"));
+    el.addEventListener("drop", ev => {
+      ev.preventDefault(); el.classList.remove("over");
+      const from = +ev.dataTransfer.getData("text/plain");
+      if(Number.isNaN(from) || from===i) return;
+      const [m] = state.template.components.splice(from,1);
+      state.template.components.splice(i,0,m); render();
+    });
+    list.appendChild(el);
+  });
+  inspector();
+}
+
+// ===========================================================================
+// render — inspector
+// ===========================================================================
+function field(label, html, hint){
+  return `<div class="field"><label>${label}</label>${html}${hint?`<div class="hintxt">${hint}</div>`:""}</div>`;
+}
+function inspector(){
+  const host = $("#insp");
+  const c = state.template.components.find(x=>x.id===state.sel);
+  if(!c){ host.innerHTML = `<div class="empty">Click a field to edit it</div>`; return; }
+
+  let h = "";
+  h += field("Type", `<select data-p="type">${Object.entries(TYPES).map(([t,i])=>
+        `<option value="${t}" ${t===c.type?"selected":""}>${i.name}</option>`).join("")}</select>`);
+  h += field(STATIC.has(c.type)?"Text":"Label",
+        c.type==="paragraph" ? `<textarea data-p="label" rows="4">${esc(c.label)}</textarea>`
+                             : `<input type="text" data-p="label" value="${esc(c.label)}">`);
+  if(!STATIC.has(c.type)){
+    h += field("Key (API name)", `<input type="text" data-p="key" value="${esc(c.key)}">`,
+               "This name will appear in the submitted JSON.");
+    h += field("Width (12-col grid)",
+      `<div class="inline"><input type="range" min="3" max="12" step="1" data-p="width" value="${c.width||12}">
+       <span>${c.width||12}/12</span></div>`);
+    h += field("Options",
+      `<label class="inline"><input type="checkbox" data-p="required" ${c.required?"checked":""}> Required</label>
+       <label class="inline" style="margin-top:6px"><input type="checkbox" data-p="readonly" ${c.readonly?"checked":""}> Read only</label>`);
+  }
+  if(["textbox","textarea","number"].includes(c.type))
+    h += field("Placeholder", `<input type="text" data-p="placeholder" value="${esc(c.placeholder)}">`);
+  if(c.type==="textarea")
+    h += field("Rows", `<input type="number" min="2" max="20" data-p="rows" value="${c.rows||3}">`);
+  if(c.type==="number")
+    h += field("Min / Max / Unit",
+      `<div class="inline"><input type="number" data-p="minValue" value="${c.minValue??""}" placeholder="min">
+       <input type="number" data-p="maxValue" value="${c.maxValue??""}" placeholder="max">
+       <input type="text" data-p="unit" value="${esc(c.unit)}" placeholder="unit"></div>`);
+
+  if(CHOICE.has(c.type)){
+    h += field("Layout", `<select data-p="optionLayout">
+        <option value="horizontal" ${c.optionLayout==="horizontal"?"selected":""}>Horizontal</option>
+        <option value="vertical" ${c.optionLayout==="vertical"?"selected":""}>Vertical</option></select>`);
+    h += `<div class="field"><label>Choices</label><div id="optlist">` +
+      c.options.map((o,i)=>`<div class="optrow">
+        <input type="text" data-opt="${i}" value="${esc(o.label)}">
+        <button class="btn small danger" data-optdel="${i}">✕</button></div>`).join("") +
+      `</div><button class="btn small" id="addOpt">+ Add choice</button></div>`;
+  }
+  if(c.type==="table"){
+    h += `<div class="field"><label>Columns</label><div id="collist">` +
+      c.columns.map((col,i)=>`<div class="optrow">
+        <input type="text" data-col="${i}" value="${esc(col.label)}">
+        <button class="btn small danger" data-coldel="${i}">✕</button></div>`).join("") +
+      `</div><button class="btn small" id="addCol">+ Add column</button></div>`;
+    h += field("Default rows", `<input type="number" min="1" max="30" data-p="rowCount" value="${c.rowCount||3}">`);
+  }
+  if(c.source && (c.source.text || c.source.page))
+    h += field("Detected from PDF",
+      `<div class="hintxt" style="margin:0">Page ${c.source.page??"?"} · ${c.detectedBy}<br>
+       <em>${esc((c.source.text||"").slice(0,180))}</em></div>`);
+
+  host.innerHTML = h;
+
+  host.querySelectorAll("[data-p]").forEach(el=>{
+    const p = el.dataset.p;
+    const ev = el.type==="checkbox"||el.tagName==="SELECT"||el.type==="range" ? "change":"input";
+    el.addEventListener(ev, () => {
+      let v = el.type==="checkbox" ? el.checked : el.value;
+      if(["width","rows","rowCount"].includes(p)) v = +v;
+      if(["minValue","maxValue"].includes(p)) v = v===""?null:+v;
+      c[p] = v;
+      if(p==="type"){
+        if(CHOICE.has(v) && !c.options.length)
+          c.options=[{id:"option_1",label:"Option 1"},{id:"option_2",label:"Option 2"}];
+        if(v==="table" && !c.columns.length)
+          c.columns=[{key:"col_1",label:"Column 1",type:"textbox"}];
+        c.detectedBy="manual"; c.confidence=1;
+      }
+      if(p==="label" && !STATIC.has(c.type) && !c._keyEdited) c.key = slug(v);
+      if(p==="key") c._keyEdited = true;
+      render();
+      if(["label","key","placeholder"].includes(p)){ // caret position bachao
+        const again = $("#insp").querySelector(`[data-p="${p}"]`);
+        if(again){ again.focus(); again.selectionStart = again.selectionEnd = again.value.length; }
+      }
+    });
+  });
+  host.querySelectorAll("[data-opt]").forEach(el=>el.addEventListener("input",()=>{
+    const i=+el.dataset.opt; c.options[i]={id:slug(el.value),label:el.value};
+    const card = $("#list").children[state.template.components.indexOf(c)];
+    if(card) card.querySelector(".cbody").innerHTML = widget(c);
+  }));
+  host.querySelectorAll("[data-optdel]").forEach(el=>el.onclick=()=>{
+    c.options.splice(+el.dataset.optdel,1); render(); });
+  const ao = $("#addOpt"); if(ao) ao.onclick = () => {
+    c.options.push({id:"option_"+(c.options.length+1),label:"Option "+(c.options.length+1)}); render(); };
+  host.querySelectorAll("[data-col]").forEach(el=>el.addEventListener("input",()=>{
+    const i=+el.dataset.col; c.columns[i]={key:slug(el.value),label:el.value,type:"textbox"}; }));
+  host.querySelectorAll("[data-coldel]").forEach(el=>el.onclick=()=>{
+    c.columns.splice(+el.dataset.coldel,1); render(); });
+  const ac = $("#addCol"); if(ac) ac.onclick = () => {
+    c.columns.push({key:"col_"+(c.columns.length+1),label:"Column "+(c.columns.length+1),type:"textbox"});
+    render(); };
+}
+
+// ===========================================================================
+// upload + api
+// ===========================================================================
+const drop = $("#drop"), dropInner = $("#dropInner"), fileInput = $("#file"), fileAiInput = $("#fileAi");
+$("#pick").onclick = () => fileInput.click();
+fileInput.onchange = () => fileInput.files[0] && upload(fileInput.files[0], "rules");
+fileAiInput.onchange = () => fileAiInput.files[0] && upload(fileAiInput.files[0], "ai");
+["dragenter","dragover"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add("hot")}));
+["dragleave","drop"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove("hot")}));
+drop.addEventListener("drop", ev => { const f=ev.dataTransfer.files[0]; if(f) upload(f, "rules"); });
+
+// AI Parse never runs on its own — only on an explicit click of this button.
+// /api/health tells us whether a key is set (or the admin disabled it); in
+// either case the button stays clearly disabled instead of erroring.
+let aiInfo = {available:false, reason:"loading…"};
+(async () => {
+  try{
+    const h = await (await fetch("/api/health")).json();
+    aiInfo = h.ai || {available:false, reason:"unknown"};
+  }catch(e){ aiInfo = {available:false, reason:"could not reach the backend"}; }
+  const btn = $("#btnAiParse");
+  btn.disabled = !aiInfo.available;
+  btn.title = aiInfo.available ? "" : aiInfo.reason;
+  if(!aiInfo.available) $("#aiHint").textContent = "AI Parse is not available right now: " + aiInfo.reason;
+})();
+$("#btnAiParse").onclick = () => {
+  if(!aiInfo.available) return toast(aiInfo.reason || "AI Parse is not available");
+  if(state.lastFile) upload(state.lastFile, "ai");
+  else fileAiInput.click();
+};
+
+async function upload(f, engine){
+  if(!f.name.toLowerCase().endsWith(".pdf")) return toast("Only PDF files are supported");
+  state.lastFile = f;
+  const aiNote = engine==="ai" ? "Running AI Parse (Gemini) — multi-page forms take a bit longer" : "detecting structure…";
+  dropInner.innerHTML = `<b>Parsing ${esc(f.name)}…</b><br><span style="font-size:12.5px">${aiNote}</span>`;
+  const fd = new FormData(); fd.append("file", f);
+  try{
+    const r = await fetch(`/api/parse?engine=${engine}`, {method:"POST", body:fd});
+    if(!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const data = await r.json();
+    const comps = data.components.map(c=>({...c, id:c.id||uid()}));
+    state.template = {title:data.title, components:comps};
+    // this snapshot is compared at save-time against what the user corrected —
+    // that diff is how correction memory learns (backend/memory.py). Whether
+    // it came from rules or AI Parse, whatever the final human-approved
+    // answer is gets learned.
+    state.original = JSON.parse(JSON.stringify(comps));
+    state.meta = data.meta || {}; state.sel = null; render();
+    const mem = state.meta.memory || {};
+    toast(`${data.components.length} blocks detected in ${state.meta.parseSeconds}s` +
+          (engine==="ai" ? " · AI Parse (Gemini)" : (mem.applied ? ` · memory applied ${mem.applied} correction(s)` : "")));
+  }catch(err){ toast("Parse failed: "+err.message); }
+  finally{ resetDrop(); fileInput.value = ""; fileAiInput.value = ""; }
+}
+function resetDrop(){
+  dropInner.innerHTML = `<b>Drop a PDF here</b> or <button class="btn small" id="pick2">choose a file</button><br>
+    <span style="font-size:12.5px">The system will automatically detect: heading, checkbox group, Yes/No, table, signature, date…</span>`;
+  $("#pick2").onclick = () => fileInput.click();
+}
+
+$("#title").oninput = e => state.template.title = e.target.value;
+$("#btnPreview").onclick = () => {
+  document.body.classList.toggle("previewing");
+  $("#btnPreview").textContent = document.body.classList.contains("previewing") ? "Edit" : "Preview";
+  render(); // rebuild widgets so preview mode actually becomes fillable (not just visually different)
+};
+function showJson(title, obj){
+  $("#dlgTitle").textContent = title;
+  const text = JSON.stringify(obj, null, 2);
+  $("#dlgBody").textContent = text;
+  $("#copyBtn").onclick = () => { navigator.clipboard.writeText(text); toast("Copied"); };
+  $("#dlBtn").onclick = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text],{type:"application/json"}));
+    a.download = slug(state.template.title)+".json"; a.click(); };
+  dlg.showModal();
+}
+$("#btnJson").onclick = () => showJson("Template JSON", cleanTemplate());
+$("#btnFormio").onclick = async () => {
+  const r = await fetch("/api/export/formio",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(cleanTemplate())});
+  showJson("form.io / KareXpert style JSON", await r.json());
+};
+$("#btnSave").onclick = async () => {
+  // original: the as-parsed snapshot from right after upload — the backend
+  // compares it against the current components to learn correction memory.
+  // If the template didn't come from a PDF (blank/loaded template), this is
+  // null and the backend skips learning.
+  const payload = {...cleanTemplate(), original: state.original};
+  try{
+    const r = await fetch("/api/templates",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)});
+    if(!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    state.template.id = d.id;
+    $("#savedDetail").innerHTML =
+      `Template ID: <b>${esc(d.id)}</b><br>` +
+      `Saved on this machine's local server, in <code>${esc(d.path || ("storage/"+d.id+".json"))}</code>.<br>` +
+      `Saved at ${esc(d.savedAt || new Date().toLocaleString())}.`;
+    dlgSaved.showModal();
+  }catch(err){ toast("Save failed: "+err.message); }
+};
+function cleanTemplate(){
+  return {id: state.template.id, title: state.template.title,
+          schemaVersion:"1.0",
+          components: state.template.components.map((c,i)=>{ const {_keyEdited,...rest}=c;
+            return {...rest, order:i+1}; })};
+}
+document.addEventListener("keydown", e => {
+  if(e.key==="Delete" && state.sel && document.activeElement.tagName==="BODY"){
+    const i = state.template.components.findIndex(x=>x.id===state.sel);
+    if(i>=0){ state.template.components.splice(i,1); state.sel=null; render(); }
+  }
+});
+render();
+</script>
+</body>
+</html>
