@@ -120,7 +120,13 @@ async def parse_pdf(
                 # Network calls + rate-limit sleeps hain — event loop block na ho.
                 template = await run_in_threadpool(gemini_parse.gemini_parse_document, str(tmp), title)
             else:
-                template = pdf_to_template(str(tmp), title=title)
+                # OCR fallback (Tesseract) CPU-bound aur blocking hai — kabhi-kabhi
+                # minutes leta hai (constrained hosting pe). Threadpool mein na
+                # chalao to poora event loop is dauraan freeze ho jaata hai, aur
+                # server koi bhi doosri request (health checks samet) serve nahi
+                # kar paata — platform isse "unresponsive" maan kar restart bhi
+                # kar sakta hai, jisse browser ko kabhi response hi nahi milta.
+                template = await run_in_threadpool(pdf_to_template, str(tmp), title=title)
                 memory_report = memory.apply_memory(template)
         except Exception as exc:
             raise HTTPException(422, f"Could not parse PDF: {type(exc).__name__}: {exc}")
