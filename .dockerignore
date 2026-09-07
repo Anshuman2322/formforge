@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.env
+storage/*.json
+samples/
+requirements-dev.txt
+README.md
