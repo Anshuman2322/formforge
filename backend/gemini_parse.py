@@ -178,16 +178,24 @@ def _call_gemini(png: bytes, page_no: int) -> str:
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="ignore")
             last_error = f"HTTP {exc.code}: {detail[:300]}"
-            if exc.code == 429 and attempt < MAX_RETRIES - 1:
+            # 429 = rate limited, 500/502/503/504 = Gemini-side overload/transient
+            # failure ("high demand, try again later") — sab retry-worthy hain,
+            # sirf 429 nahi. Baaki 4xx (bad request, auth, etc.) turant fail ho.
+            if exc.code in (429, 500, 502, 503, 504) and attempt < MAX_RETRIES - 1:
                 time.sleep(backoff)
                 backoff *= 2
                 continue
             raise GeminiUnavailable(f"Gemini API call failed (page {page_no}): {last_error}") from exc
         except urllib.error.URLError as exc:
+            last_error = f"URL error: {exc}"
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(backoff)
+                backoff *= 2
+                continue
             raise GeminiUnavailable(f"Could not reach Gemini (page {page_no}): {exc}") from exc
 
     raise GeminiUnavailable(
-        f"Gemini rate limit — still failing after {MAX_RETRIES} retries (page {page_no}): {last_error}"
+        f"Gemini still failing after {MAX_RETRIES} retries (page {page_no}): {last_error}"
     )
 
 
