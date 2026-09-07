@@ -106,6 +106,9 @@
   dialog header{border-radius:12px 12px 0 0}
   dialog pre{margin:0;padding:14px;max-height:60vh;overflow:auto;background:#0f1722;color:#d7e3f2;
              font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .tplRow{padding:10px 14px;border-bottom:1px solid #f0f3f7;cursor:pointer}
+  .tplRow:hover{background:#f7f9fb}
+  .tplRow:last-child{border-bottom:none}
   .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#16202c;color:#fff;
          padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:60}
   .toast.on{opacity:1}
@@ -126,6 +129,7 @@
   <input id="title" value="Untitled Template">
   <span class="pill" id="stat">0 fields</span>
   <div class="spacer"></div>
+  <button class="btn" id="btnOpen">Open</button>
   <button class="btn" id="btnPreview">Preview</button>
   <button class="btn" id="btnJson">JSON</button>
   <button class="btn" id="btnFormio">Export form.io</button>
@@ -185,6 +189,14 @@
   <div style="padding:10px 14px;border-top:1px solid var(--line);text-align:right">
     <button class="btn small primary" onclick="dlgSaved.close()">OK</button>
   </div>
+</dialog>
+
+<dialog id="dlgOpen" style="width:min(480px,92vw)">
+  <header style="padding:10px 14px;border-bottom:1px solid var(--line)">
+    <b>Open a saved template</b><div class="spacer"></div>
+    <button class="btn small" onclick="dlgOpen.close()">Close</button>
+  </header>
+  <div id="dlgOpenBody" style="max-height:60vh;overflow:auto"></div>
 </dialog>
 
 <div class="toast" id="toast"></div>
@@ -575,6 +587,36 @@ $("#btnSave").onclick = async () => {
     dlgSaved.showModal();
   }catch(err){ toast("Save failed: "+err.message); }
 };
+$("#btnOpen").onclick = async () => {
+  $("#dlgOpenBody").innerHTML = `<div class="empty">Loading…</div>`;
+  dlgOpen.showModal();
+  try{
+    const r = await fetch("/api/templates");
+    if(!r.ok) throw new Error(r.statusText);
+    const list = await r.json();
+    $("#dlgOpenBody").innerHTML = list.length ? list.map(t => `
+      <div class="tplRow" data-id="${esc(t.id)}">
+        <b>${esc(t.title || t.id)}</b>
+        <div class="hintxt" style="margin:2px 0 0">${t.fields} field${t.fields===1?"":"s"} · saved ${esc(t.savedAt || "")}</div>
+      </div>`).join("") : `<div class="empty">No saved templates yet</div>`;
+    $("#dlgOpenBody").querySelectorAll(".tplRow").forEach(row => row.onclick = () => loadTemplate(row.dataset.id));
+  }catch(err){ $("#dlgOpenBody").innerHTML = `<div class="empty">Could not load templates: ${esc(err.message)}</div>`; }
+};
+async function loadTemplate(id){
+  try{
+    const r = await fetch(`/api/templates/${encodeURIComponent(id)}`);
+    if(!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    const comps = (d.components || []).map(c => ({...c, id: c.id || uid()}));
+    state.template = {id: d.id, title: d.title || "Untitled Template", components: comps};
+    // Loaded from storage, not freshly parsed from a PDF — no as-parsed snapshot
+    // to diff against, so correction-memory learning is skipped on next Save
+    // (see the comment on the Save handler above).
+    state.original = null; state.meta = {}; state.sel = null; render();
+    dlgOpen.close();
+    toast(`Opened "${state.template.title}"`);
+  }catch(err){ toast("Could not open template: "+err.message, 5000); }
+}
 function cleanTemplate(){
   return {id: state.template.id, title: state.template.title,
           schemaVersion:"1.0",

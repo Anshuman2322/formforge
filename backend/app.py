@@ -158,6 +158,8 @@ async def save_template(payload: Dict[str, Any]):
 def list_templates() -> List[Dict[str, Any]]:
     out = []
     for p in sorted(STORAGE.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        if p.name == memory.STORE_PATH.name:  # correction-memory store, not a template
+            continue
         try:
             d = json.loads(p.read_text())
         except json.JSONDecodeError:
