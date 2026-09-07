@@ -44,19 +44,30 @@ MIN_CONFIDENCE = 40   # Tesseract 0-100 confidence; isse kam wale words drop
 TESSERACT_CONFIG = "--psm 6"
 
 _TESS_ENV = "FORMFORGE_TESSERACT_CMD"
+_OCR_DISABLED_ENV = "FORMFORGE_OCR_DISABLED"
 _TESS_CANDIDATES = [
     r"C:\Program Files\Tesseract-OCR\tesseract.exe",
     r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
 ]
 
+_TRY_AI_INSTEAD = (
+    "try the 'AI Parse (Gemini)' button above instead, it reads the page image "
+    "directly and doesn't need OCR."
+)
+
 
 class OcrUnavailable(RuntimeError):
-    """Page ka text nikaalne layak nahi hai aur Tesseract install nahi mila."""
+    """Page ka text nikaalne layak nahi hai — Tesseract missing hai, ya
+    explicitly disabled kiya gaya hai (FORMFORGE_OCR_DISABLED)."""
 
 
 def page_is_sparse(char_count: int, page: Any) -> bool:
     ink = len(page.curves) + len(page.rects) + len(page.lines) + (50 if page.images else 0)
     return char_count < SPARSE_CHAR_MAX and ink > SPARSE_INK_MIN
+
+
+def ocr_disabled() -> bool:
+    return os.environ.get(_OCR_DISABLED_ENV, "").strip().lower() in ("1", "true", "yes")
 
 
 def _find_tesseract_cmd() -> str:
@@ -70,10 +81,9 @@ def _find_tesseract_cmd() -> str:
         if os.path.exists(candidate):
             return candidate
     raise OcrUnavailable(
-        "This PDF's text layer is too sparse to read directly (likely a scan or a "
-        "flattened print) and the free local OCR engine (Tesseract) isn't installed "
-        "on this server — try the 'AI Parse (Gemini)' button above instead, it reads "
-        "the page image directly and doesn't need OCR. "
+        f"This PDF's text layer is too sparse to read directly (likely a scan or a "
+        f"flattened print) and the free local OCR engine (Tesseract) isn't installed "
+        f"on this server — {_TRY_AI_INSTEAD} "
         "(Running your own server? Install Tesseract with: "
         "`winget install --id UB-Mannheim.TesseractOCR -e` "
         "(or from https://github.com/UB-Mannheim/tesseract/wiki), then try again — "
@@ -84,6 +94,16 @@ def _find_tesseract_cmd() -> str:
 def ocr_words(page: Any, resolution: int = OCR_RESOLUTION) -> List["Word"]:
     """Sparse-text page ko image bana kar Tesseract se words+bbox nikalta hai
     aur unhe PDF point-space mein `extract.Word` jaisa list return karta hai."""
+    if ocr_disabled():
+        # Tesseract yahan installed ho sakta hai (Docker image mein bundled),
+        # par is host pe itna CPU-constrained ho sakta hai ki OCR minutes le le
+        # aur platform ka apna request-timeout hit kar de (dekha gaya: Render
+        # free tier ke 0.1 CPU pe ek scanned page ~1.5-2 min leta hai). Isse
+        # explicitly band karke turant AI Parse ki taraf point karna behtar hai
+        # is se ki ek slow, kabhi-kabhi-fail-hone-wali OCR attempt karna.
+        raise OcrUnavailable(
+            f"Local OCR is disabled on this server ({_OCR_DISABLED_ENV}=true) — {_TRY_AI_INSTEAD}"
+        )
     try:
         import pytesseract
         from pytesseract import Output
