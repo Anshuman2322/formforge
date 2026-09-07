@@ -220,8 +220,8 @@ const uid = () => "c_" + Math.random().toString(36).slice(2,10);
 const slug = s => (s||"").toLowerCase().replace(/[^\w\s-]/g," ").trim().replace(/\s+/g,"_").slice(0,60) || "field";
 const esc = s => (s??"").toString().replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
 
-function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("on");
-  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("on"),2200); }
+function toast(msg, ms){ const t=$("#toast"); t.textContent=msg; t.classList.add("on");
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("on"),ms||2200); }
 
 // ===========================================================================
 // palette
@@ -499,7 +499,7 @@ async function upload(f, engine){
     const mem = state.meta.memory || {};
     toast(`${data.components.length} blocks detected in ${state.meta.parseSeconds}s` +
           (engine==="ai" ? " · AI Parse (Gemini)" : (mem.applied ? ` · memory applied ${mem.applied} correction(s)` : "")));
-  }catch(err){ toast("Parse failed: "+err.message); }
+  }catch(err){ toast("Parse failed: "+err.message, 7000); }
   finally{ resetDrop(); fileInput.value = ""; fileAiInput.value = ""; }
 }
 function resetDrop(){

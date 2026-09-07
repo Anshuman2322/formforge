@@ -65,10 +65,14 @@ def _find_tesseract_cmd() -> str:
         if os.path.exists(candidate):
             return candidate
     raise OcrUnavailable(
-        "Tesseract OCR engine not found. Install it with: "
+        "This PDF's text layer is too sparse to read directly (likely a scan or a "
+        "flattened print) and the free local OCR engine (Tesseract) isn't installed "
+        "on this server — try the 'AI Parse (Gemini)' button above instead, it reads "
+        "the page image directly and doesn't need OCR. "
+        "(Running your own server? Install Tesseract with: "
         "`winget install --id UB-Mannheim.TesseractOCR -e` "
-        "(or from https://github.com/UB-Mannheim/tesseract/wiki), then try again. "
-        f"For a custom install path, set the {_TESS_ENV} env var."
+        "(or from https://github.com/UB-Mannheim/tesseract/wiki), then try again — "
+        f"for a custom install path, set the {_TESS_ENV} env var.)"
     )
 
 
