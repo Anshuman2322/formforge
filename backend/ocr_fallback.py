@@ -31,11 +31,15 @@ SPARSE_CHAR_MAX = 40
 SPARSE_INK_MIN = 40
 
 # dpi — jitna zyada, OCR accuracy utni behtar, par render+recognize dono
-# resolution^2 ke hisaab se slow hote hain. 300 ek normal CPU pe theek hai;
-# constrained hosting (jaise Render free tier ka 0.1 CPU) pe bahut slow ho
-# jaata hai (~2min ek page ke liye) aur platform ka apna request-timeout
-# hit kar sakta hai. FORMFORGE_OCR_RESOLUTION se override karo agar zaroorat ho.
-OCR_RESOLUTION = int(os.environ.get("FORMFORGE_OCR_RESOLUTION", "200"))
+# resolution^2 ke hisaab se slow hote hain, aur constrained hosting (jaise
+# Render free tier ka 0.1 CPU) pe ye already-minutes-long OCR ko aur lamba
+# kar deta hai. Benchmarked (samples/real_hinduja_form.pdf, local CPU):
+# 200dpi->295 words/1.45s, 150dpi->297/1.01s, 120dpi->294/0.88s, 100dpi->271/0.84s
+# — accuracy 120dpi tak flat rehti hai, 100dpi pe real drop shuru hota hai.
+# 120 ko safe floor maana — ~40% kam kaam 200dpi ke muqable, koi accuracy loss nahi
+# (is ek sample pe). FORMFORGE_OCR_RESOLUTION se override karo agar zaroorat ho
+# (kam-constrained host ho to upar bhi le ja sakte ho behtar accuracy ke liye).
+OCR_RESOLUTION = int(os.environ.get("FORMFORGE_OCR_RESOLUTION", "120"))
 MIN_CONFIDENCE = 40   # Tesseract 0-100 confidence; isse kam wale words drop
 # PSM 6 = "assume a single uniform block of text". Default automatic layout
 # (PSM 3) galat se sparse/isolated columns (jaise "Yes"/"No" ke pair jo bahut
